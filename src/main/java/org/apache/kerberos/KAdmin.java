@@ -26,9 +26,13 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.log4j.Logger;
+
 public class KAdmin {
 
 	private final static Object lock = new Object();
+	Logger LOG = Logger.getLogger(KAdmin.class);
+
 
 	/**
 	 * A String containing the resolved path to the kdamin executable
@@ -53,7 +57,9 @@ public class KAdmin {
 		BufferedReader br = new BufferedReader(isr);
 		String line;
 		while ((line = br.readLine()) != null) {
-			System.out.println(line);
+			if (LOG.isDebugEnabled()) {
+				LOG.debug(line);
+			}
 		}
 
 		int exitCode = kadmin.exitValue();
@@ -85,6 +91,33 @@ public class KAdmin {
 
 		int exitCode = kadmin.exitValue();
 		return (result != null) && result.contains(String.format("Principal: %s", principalName));
+	}
+	public boolean checkPrincipalOwner(String principalName, String ticketCache) throws IOException, InterruptedException {
+		List<String> command = new ArrayList();
+
+		command.add(executableKadmin);
+		command.add("-c");
+		command.add(ticketCache);
+		command.add("-q");
+		command.add(String.format("get_principal -terse %s", principalName));
+		String[] commandList = command.toArray(new String[command.size()]);
+		ProcessBuilder kadminListPB = new ProcessBuilder(commandList);
+		Process kadmin = kadminListPB.start();
+		kadmin.waitFor();
+		// Read out dir output
+		InputStream is = kadmin.getInputStream();
+		InputStreamReader isr = new InputStreamReader(is);
+		BufferedReader br = new BufferedReader(isr);
+		String line;
+		StringBuilder builder = new StringBuilder();
+		while ((line = br.readLine()) != null) {
+			builder.append(line);
+			builder.append(System.getProperty("line.separator"));
+		}
+		String result = builder.toString();
+
+		int exitCode = kadmin.exitValue();
+		return (result != null) && result.contains(String.format("keydist@"));
 	}
 
 	public boolean createPrincipal(String principalName, String ticketCache) throws IOException, InterruptedException {
@@ -118,11 +151,35 @@ public class KAdmin {
 	public boolean createKeyTab(String principalName, String ticketCache, String tempOutputPath)
 			throws IOException, InterruptedException {
 		List<String> command = new ArrayList<String>();
-		String host = principalName.split("/")[1].split("@")[0];
+		String host = "";
+		if (principalName.startsWith("host/")) {
+			LOG.debug("HostPrincipal: " + principalName);
+			host = principalName.split("/")[1].split("@")[0];
+			LOG.debug("HostPrincipal: " + host);
+
+		} else {
+			String prefixName = principalName.split("@")[0];
+			LOG.debug("NotHostPrincipal: " + prefixName);
+			if (prefixName.contains("/")) {
+				LOG.debug("ServicePrincipal: " + prefixName);
+				String prefixService = prefixName.split("/")[0];
+				LOG.debug("prefixService: " + prefixService);
+
+				String prefixHost = prefixName.split("/")[1];
+				LOG.debug("prefixHost: " + prefixHost);
+				host = prefixService+"-"+prefixHost;
+				LOG.debug("ServicePrincipal: " + host);
+			} else {
+				host = prefixName+".headless";
+				LOG.debug("headlessKeytab: " + host);
+			}
+		}
 		File keytabFile = new File(tempOutputPath + "/" + host + ".keytab");
-		System.out.println("KeyTabPathAndFile: "+keytabFile.getName());
-		if (keytabFile.isFile()) {
-			System.out.println("KeyTab Already Generated");
+		if (LOG.isDebugEnabled()) {
+			LOG.debug("KeyTabPathAndFile: "+keytabFile.getName());
+		}
+		if (keytabFile.isFile()) {	
+			LOG.debug("KeyTab Already Generated");
 			return true;
 		}
 		command.add(executableKadmin);
@@ -141,7 +198,9 @@ public class KAdmin {
 		String line;
 		StringBuilder builder = new StringBuilder();
 		while ((line = br.readLine()) != null) {
-			System.out.println(line);
+			if (LOG.isDebugEnabled()) {
+				LOG.debug(line);		
+			}
 			builder.append(line);
 			builder.append(System.getProperty("line.separator"));
 		}

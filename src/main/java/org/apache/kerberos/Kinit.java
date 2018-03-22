@@ -22,7 +22,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.log4j.Logger;
+
 public class Kinit implements Runnable {
+	Logger LOG = Logger.getLogger(Kinit.class);
 	String kinitExecutable = "/usr/bin/kinit";
 	String kadminTGS = "kadmin/admin";
 	String kadminPrincipal;
@@ -61,20 +64,20 @@ public class Kinit implements Runnable {
 						kadmin = kadminListPB.start();
 					} catch (IOException e) {
 						// TODO Auto-generated catch block
-						e.printStackTrace();
+						LOG.error(e.toString());
 					}
 
 					try {
 						kadmin.waitFor();
 					} catch (InterruptedException e) {
 						// TODO Auto-generated catch block
-						e.printStackTrace();
+						LOG.error(e.toString());
 					}
 					int exitCode = kadmin.exitValue();
 					lock.wait(kinitDelay);
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
-					e.printStackTrace();
+					LOG.error(e.toString());
 				}
 			}
 		}
